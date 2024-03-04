@@ -1,6 +1,6 @@
 # button.py
 
-# source: http://www.python-exemplary.com/index_en.php?inhalt_links=navigation_en.inc.php&inhalt_mitte=raspi/en/switches.inc.php
+# source: http://www.python-exemplary.com/index_en.php?inhalt_left=navigation_en.inc.php&inhalt_mitte=raspi/en/switches.inc.php
 
 import RPi.GPIO as GPIO
 import time
@@ -12,8 +12,11 @@ BUTTON_RELEASED = 2
 BUTTON_LONGPRESSED = 3
 BUTTON_CLICKED = 4
 BUTTON_DOUBLECLICKED = 5
-BUTTON_LONGPRESS_DURATION = 2 # default (in s) the button must be pressed to be a long press
-BUTTON_DOUBLECLICK_TIME = 1 # default time (in s) to wait for a double click event
+BUTTON_LONGPRESS_DURATION = (
+    2  # default (in s) the button must be pressed to be a long press
+)
+BUTTON_DOUBLECLICK_TIME = 1  # default time (in s) to wait for a double click event
+
 
 # --------------- class ClickThread -------------------------------
 class ClickThread(Thread):
@@ -24,7 +27,7 @@ class ClickThread(Thread):
 
     def run(self):
         if Button.DEBUG:
-            print ("===>ClickThread started")
+            print("===>ClickThread started")
         self.isRunning = True
         startTime = time.time()
         while self.isRunning and (time.time() - startTime < BUTTON_DOUBLECLICK_TIME):
@@ -33,12 +36,13 @@ class ClickThread(Thread):
             if self.button.xButtonListener != None:
                 self.button.xButtonListener(self.button, BUTTON_CLICKED)
             self.button.clickThread = None
-        self.isRunning  = False
+        self.isRunning = False
         if Button.DEBUG:
-            print ("===>ClickThread terminated")
+            print("===>ClickThread terminated")
 
     def stop(self):
         self.isRunning = False
+
 
 # --------------- class ButtonThread ------------------------------
 class ButtonThread(Thread):
@@ -49,7 +53,7 @@ class ButtonThread(Thread):
 
     def run(self):
         if Button.DEBUG:
-            print ("===>ButtonThread started")
+            print("===>ButtonThread started")
         self.isRunning = True
         startTime = time.time()
         while self.isRunning and (time.time() - startTime < BUTTON_LONGPRESS_DURATION):
@@ -58,14 +62,16 @@ class ButtonThread(Thread):
             if self.button.buttonListener != None:
                 self.button.buttonListener(self.button, BUTTON_LONGPRESSED)
         if Button.DEBUG:
-            print ("===>ButtonThread terminated")
+            print("===>ButtonThread terminated")
 
     def stop(self):
         self.isRunning = False
 
+
 # --------------- class Button ------------------------------------
-class Button():
+class Button:
     DEBUG = False
+
     def __init__(self, buttonPin):
         self.buttonListener = None
         self.xButtonListener = None
@@ -76,7 +82,7 @@ class Button():
         self.buttonPin = buttonPin
         GPIO.setup(self.buttonPin, GPIO.IN, GPIO.PUD_UP)
         GPIO.add_event_detect(self.buttonPin, GPIO.BOTH, self.onButtonEvent)
-    
+
     def onXButtonEvent(self, button, event):
         if event == BUTTON_PRESSED:
             if self.buttonListener != None:
@@ -109,19 +115,19 @@ class Button():
     def onButtonEvent(self, channel):
         # switch may bounce: down-up-up, down-up-down, down-down-up etc. in fast sequence
         if GPIO.input(self.buttonPin) == GPIO.LOW:
-            if self.buttonThread == None: # down-down is suppressed
+            if self.buttonThread == None:  # down-down is suppressed
                 if Button.DEBUG:
-                    print ("->ButtonDown")
+                    print("->ButtonDown")
                 self.buttonThread = ButtonThread(self)
                 self.buttonThread.start()
                 if self.buttonListener != None:
                     self.buttonListener(self, BUTTON_PRESSED)
         else:
-            if self.buttonThread != None: # up-up is suppressed
+            if self.buttonThread != None:  # up-up is suppressed
                 if Button.DEBUG:
-                    print ("->ButtonUp")
+                    print("->ButtonUp")
                 self.buttonThread.stop()
-                self.buttonThread.join(200) # wait until finished
+                self.buttonThread.join(200)  # wait until finished
                 self.buttonThread = None
                 if self.buttonListener != None:
                     self.buttonListener(self, BUTTON_RELEASED)
@@ -132,5 +138,3 @@ class Button():
 
     def addButtonListener(self, listener):
         self.buttonListener = listener
-
-
