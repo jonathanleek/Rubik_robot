@@ -32,12 +32,19 @@ echo "==> Service user  : $RUN_USER"
 # --------------------------------------------------------------------------- #
 echo "==> Installing system packages"
 sudo apt-get update
+# Essential packages (fail hard if any are missing).
 sudo apt-get install -y \
     python3-venv python3-pip python3-dev \
     python3-picamera2 \
-    i2c-tools python3-smbus \
-    libatlas-base-dev \
+    i2c-tools \
     git
+# Optional helpers — best-effort; package names vary across Debian releases
+# (e.g. Bookworm vs Trixie) and these are not strictly required.
+for pkg in python3-smbus python3-smbus2 libatlas-base-dev; do
+    sudo apt-get install -y "$pkg" 2>/dev/null \
+        && echo "    installed optional: $pkg" \
+        || echo "    skipped optional (unavailable): $pkg"
+done
 
 # --------------------------------------------------------------------------- #
 # 2. Enable interfaces (I2C for PCA9685, camera auto-detect)
