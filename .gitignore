@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenvs
+.venv/
+.venv-dev/
+venv/
+
+# Runtime state (calibration, captured images)
+/data/
+*.jpg
+
+# OS
+.DS_Store

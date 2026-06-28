@@ -1,0 +1,15 @@
+# Python dependencies installed into the project virtualenv (pip).
+#
+# NOTE: picamera2 and numpy are NOT installed here. On Raspberry Pi OS they are
+# provided as the apt package `python3-picamera2` and made visible to the venv
+# via `--system-site-packages` (see setup/provision.sh). They do not install
+# cleanly from PyPI on the Pi.
+
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+Pillow>=10.0
+
+# PCA9685 servo control (CircuitPython / Blinka stack)
+adafruit-blinka>=8.0
+adafruit-circuitpython-pca9685>=3.4

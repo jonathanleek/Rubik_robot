@@ -1,0 +1,16 @@
+[Unit]
+Description=Rubik Robot hardware API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_DIR__
+Environment=RUBIK_DATA_DIR=__APP_DIR__/data
+ExecStart=__APP_DIR__/.venv/bin/python -m rubik_robot --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
