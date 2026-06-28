@@ -11,6 +11,8 @@ endpoints to drive the robot.
 Mechanical build: <https://www.thingiverse.com/thing:3826740>
 (this code targets the **PCA9685** servo-driver variant).
 
+> **Project status, goals, and bring-up plan:** see [docs/PROJECT.md](docs/PROJECT.md).
+
 ---
 
 ## Architecture
