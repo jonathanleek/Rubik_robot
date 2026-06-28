@@ -18,20 +18,33 @@ from .config import Calibration
 from .robot import Robot
 
 
-def build_robot(mock: bool) -> Robot:
-    if mock:
-        from .hardware.camera import MockCamera
+def build_robot(servos: str = "real", camera: str = "real", rotation: int | None = None) -> Robot:
+    """Build a Robot with independently selectable servo/camera backends.
+
+    ``servos`` / ``camera`` are each "real" or "mock". This lets us run the
+    camera before the PCA9685 is wired (``--servos mock --camera real``).
+    """
+    if servos == "mock":
         from .hardware.servos import MockServoDriver
 
-        return Robot(MockServoDriver(), MockCamera())
+        driver = MockServoDriver()
+    else:
+        from .config import PCA9685_ADDRESS
+        from .hardware.servos import PCA9685ServoDriver
 
-    from .config import PCA9685_ADDRESS
-    from .hardware.camera import PiCamera2
-    from .hardware.servos import PCA9685ServoDriver
+        driver = PCA9685ServoDriver(address=PCA9685_ADDRESS)
 
-    driver = PCA9685ServoDriver(address=PCA9685_ADDRESS)
-    camera = PiCamera2()
-    return Robot(driver, camera)
+    if camera == "mock":
+        from .hardware.camera import MockCamera
+
+        cam = MockCamera()
+    else:
+        from .config import CAMERA_ROTATION
+        from .hardware.camera import PiCamera2
+
+        cam = PiCamera2(rotation=CAMERA_ROTATION if rotation is None else rotation)
+
+    return Robot(driver, cam)
 
 
 def main() -> None:
@@ -42,7 +55,25 @@ def main() -> None:
         "--mock",
         action="store_true",
         default=os.environ.get("RUBIK_MOCK", "") == "1",
-        help="run with mock hardware (no servos/camera required)",
+        help="shortcut for --servos mock --camera mock (no hardware required)",
+    )
+    parser.add_argument(
+        "--servos",
+        choices=("real", "mock"),
+        default=os.environ.get("RUBIK_SERVOS", "real"),
+        help="servo backend (default real; use mock before the PCA9685 is wired)",
+    )
+    parser.add_argument(
+        "--camera",
+        choices=("real", "mock"),
+        default=os.environ.get("RUBIK_CAMERA", "real"),
+        help="camera backend (default real)",
+    )
+    parser.add_argument(
+        "--rotation",
+        type=int,
+        default=None,
+        help="override camera rotation in degrees clockwise (0/90/180/270)",
     )
     parser.add_argument(
         "--home-on-start",
@@ -51,11 +82,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    servos = "mock" if args.mock else args.servos
+    camera = "mock" if args.mock else args.camera
+
     # Surface calibration problems early.
     Calibration.from_disk()
 
-    robot = build_robot(args.mock)
-    if args.home_on_start and not args.mock:
+    robot = build_robot(servos=servos, camera=camera, rotation=args.rotation)
+    if args.home_on_start and servos == "real":
         robot.home()
 
     app = create_app(robot)

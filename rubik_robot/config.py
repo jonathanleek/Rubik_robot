@@ -82,6 +82,11 @@ SERVO_OFFSET_RIGHT_WRIST = 0
 IMG_WIDTH = 1080
 IMG_HEIGHT = 1080
 
+#: Degrees clockwise to rotate each captured frame so a gripped cube appears as
+#: an upright 3x3 grid. Set empirically during scan tuning (0/90/180/270).
+#: Override at runtime with the RUBIK_CAMERA_ROTATION env var or --rotation flag.
+CAMERA_ROTATION = int(os.environ.get("RUBIK_CAMERA_ROTATION", "0"))
+
 #: Pixel rows/columns at which the 9 stickers of a face are sampled.
 TOP_ROW_PX = 230
 MID_ROW_PX = 500
