@@ -1,0 +1,22 @@
+# Rubik Robot API dependencies
+#
+# Core API
+flask>=2.0
+
+# Raspberry Pi hardware
+RPi.GPIO>=0.7
+picamera>=1.13
+
+# Image processing
+Pillow>=8.0
+
+# Cube solving (used by the external solver, not this API directly,
+# but useful for validating scanned cube states)
+kociemba>=1.2
+
+# PCA9685 driver (only needed for --driver pca9685)
+Adafruit-PCA9685>=1.0
+
+# OLED display (only needed for --driver pca9685)
+luma.oled>=3.0
+luma.core>=2.0

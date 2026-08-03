@@ -35,7 +35,7 @@ device = ssd1306(serial)
 
 pwm = Adafruit_PCA9685.PCA9685(address=0x40)
 
-fPWM = 300  # Servo PWM Frequenz; 20 ms Dauer
+fPWM = 300  # Servo PWM frequency; 20 ms duration
 
 pwm.set_pwm_freq(fPWM)
 
@@ -50,24 +50,24 @@ with canvas(device) as draw:
     draw.text((15, 15), "Boot ", font=font, fill="white")
 
 
-# _______________Konstanten________________
+# _______________Constants________________
 
 GPIO.setmode(GPIO.BOARD)
 
-PLUS_BUTTON = 11  # an die gewählten GPIO anpassen
-MINUS_BUTTON = 13  # an die gewählten GPIO anpassen
-ENTER_BUTTON = 15  # an die gewählten GPIO anpassen
+PLUS_BUTTON = 11  # adapt to selected GPIO
+MINUS_BUTTON = 13  # adapt to selected GPIO
+ENTER_BUTTON = 15  # adapt to selected GPIO
 
-left_wrist = 0  # an die gewählten GPIO anpassen // PCA9685 port
-left_GRIP = 1  # an die gewählten GPIO anpassen
-right_wrist = 2  # an die gewählten GPIO anpassen
-right_GRIP = 3  # an die gewählten GPIO anpassen
+left_wrist = 0  # adapt to selected GPIO // PCA9685 port
+left_GRIP = 1  # adapt to selected GPIO
+right_wrist = 2  # adapt to selected GPIO
+right_GRIP = 3  # adapt to selected GPIO
 
-C180 = 1  # 1 = 180° wristbewegung (mind. 270 ° Servo); else = 90° (standard)
+C180 = 1  # 1 = 180° wrist movement (min. 270° servo); else = 90° (standard)
 
 GRIPPER_MAX = 50
 GRIPPER_MIN = 0
-TURN_MAX = 270  # max wristwinkel des Servox  - limit for setup
+TURN_MAX = 270  # max wrist angle of servo - limit for setup
 TURN_MIN = 0
 
 SLEEP_GRIP = 0.3
@@ -129,7 +129,7 @@ pxl_locs = [
 TARGET_STANDARD = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB"
 
 
-# ____________________globale Variablen___________________________________
+# ____________________Global Variables___________________________________
 
 state_machine = 0  # 0 = Display Start / Solve
 # 1 = Display Setup
@@ -147,7 +147,7 @@ state_machine = 0  # 0 = Display Start / Solve
 # 76 = start own Pattern
 # 77 = scan own Pattern
 # 80 = scramble
-# 85 = Training   mit Trainindex
+# 85 = Training with Trainindex
 # 97 = Display during Training
 # 98 = Display during scambling
 # 99 = running
@@ -305,10 +305,10 @@ def setDirection_right_grip(direction):
 # p: plus (clockwise)
 # m: minus
 
-# A: left gripper zu
-# a: left gripper auf
-# B: right gripper zu
-# b: right gripper auf
+# A: left gripper close
+# a: left gripper open
+# B: right gripper close
+# b: right gripper open
 # M: left 0
 # N: left 90
 # O: left 180
@@ -316,7 +316,7 @@ def setDirection_right_grip(direction):
 # Y: right 90
 # Z: right 180
 # R: Regrip
-# t: Zähler count down
+# t: counter count down
 
 # convert macro moves into single action moves of servos
 
@@ -603,7 +603,7 @@ def create_master_string():
     )  # removes redundant gripper turn at 90°
 
 
-# ______________________________________________________wristkorrektur_______________________________________________
+# ______________________________________________________Turn Correction_______________________________________________
 
 
 def correct_right():  # 90° turn
@@ -669,33 +669,33 @@ def onButtonEvent_plus(plus, event):
         elif dummy == 4:
             state_machine = 0
             message = "Start"
-        elif state_machine == 10:  # left grip wird eingestellt
+        elif state_machine == 10:  # left grip is being adjusted
             left_grip_tune = left_grip_tune + 2
             #            if left_grip_tune > GRIPPER_MAX:
             #                left_grip_tune = GRIPPER_MAX
             setDirection_left_grip(left_grip_tune)
-        elif state_machine == 20:  # left wrist wird eingestellt
+        elif state_machine == 20:  # left wrist is being adjusted
             left_wrist_tune = left_wrist_tune + 2
             #           if left_wrist_tune + 180 > TURN_MAX:
             #               left_wrist_tune = TURN_MAX-180
             setDirection_left_turn(90 + left_wrist_tune, 0.5)
-        elif state_machine == 30:  # right grip wird eingestellt
+        elif state_machine == 30:  # right grip is being adjusted
             right_grip_tune = right_grip_tune + 2
             #          if right_grip_tune > GRIPPER_MAX:
             #              right_grip_tune = GRIPPER_MAX
             setDirection_right_grip(right_grip_tune)
-        elif state_machine == 40:  # right wrist wird eingestellt
+        elif state_machine == 40:  # right wrist is being adjusted
             right_wrist_tune = right_wrist_tune + 2
             #         if right_wrist_tune + 180 > TURN_MAX:
             #             right_wrist_tune = TURN_MAX-180
             setDirection_right_turn(90 + right_wrist_tune, 0.5)
-        elif state_machine == 50:  # Load wird eingestellt
+        elif state_machine == 50:  # Load is being adjusted
             LOAD = LOAD + 2
             #            if LOAD > GRIPPER_MAX:
             #                LOAD = GRIPPER_MAX
             setDirection_left_grip(LOAD + left_grip_tune)
             setDirection_right_grip(LOAD + right_grip_tune)
-        elif state_machine == 60:  # SLEEP wird eingestellt
+        elif state_machine == 60:  # SLEEP is being adjusted
             SLEEP = SLEEP + 0.05
             if SLEEP > 1:
                 SLEEP = 1
@@ -767,33 +767,33 @@ def onButtonEvent_minus(minus, event):
         elif dummy == 1:
             state_machine = 0
             message = "Start"
-        elif state_machine == 10:  # left grip wird eingestellt
+        elif state_machine == 10:  # left grip is being adjusted
             left_grip_tune = left_grip_tune - 2
             if left_grip_tune < 0:
                 left_grip_tune = 0
             setDirection_left_grip(left_grip_tune)
-        elif state_machine == 20:  # left wrist wird eingestellt
+        elif state_machine == 20:  # left wrist is being adjusted
             left_wrist_tune = left_wrist_tune - 2
             if left_wrist_tune < 0:
                 left_wrist_tune = 0
             setDirection_left_turn(90 + left_wrist_tune, 0.5)
-        elif state_machine == 30:  # right grip wird eingestellt
+        elif state_machine == 30:  # right grip is being adjusted
             right_grip_tune = right_grip_tune - 2
             if right_grip_tune < 0:
                 right_grip_tune = 0
             setDirection_right_grip(right_grip_tune)
-        elif state_machine == 40:  # right wrist wird eingestellt
+        elif state_machine == 40:  # right wrist is being adjusted
             right_wrist_tune = right_wrist_tune - 2
             if right_wrist_tune < 0:
                 right_wrist_tune = 0
             setDirection_right_turn(90 + right_wrist_tune, 0.5)
-        elif state_machine == 50:  # Load wird eingestellt
+        elif state_machine == 50:  # Load is being adjusted
             LOAD = LOAD - 2
             if LOAD < 0:
                 LOAD = 0
             setDirection_left_grip(LOAD + left_grip_tune)
             setDirection_right_grip(LOAD + right_grip_tune)
-        elif state_machine == 60:  # SLEEP wird eingestellt
+        elif state_machine == 60:  # SLEEP is being adjusted
             SLEEP = SLEEP - 0.05
             if SLEEP < 0:
                 SLEEP = 0
@@ -852,7 +852,7 @@ def onButtonEvent_enter(enter, event):
         if dummy == 0:
             state_machine = 99
             regrip()
-            # hier startet die Analyse
+            # analysis starts here
         elif dummy == 1:
             setDirection_left_turn(90 + left_wrist_tune, 0.5)
             setDirection_left_grip(left_grip_tune)
@@ -970,7 +970,7 @@ def onButtonEvent_enter(enter, event):
 # ______________________________________________________________________Display__________________________________________
 
 
-def Anzeige():
+def display():
     global now
     i = 0
     #    font = ImageFont.truetype(HOME + 'scripts/font/VCR_OSD_MONO_1.001.ttf',20)
@@ -1132,7 +1132,7 @@ def Anzeige():
             time.sleep(0.2)
 
 
-# __________________________________________________________________Wxrfel einlesen_____________________________________
+# __________________________________________________________________Read Cube_____________________________________
 
 
 # 0 = U
@@ -1242,7 +1242,7 @@ def get_cube():
     camera.capture(HOME + "Cube/face0.jpg")
 
 
-# _______________________________________________________________Image_autokorrektur___________________________________
+# _______________________________________________________________Image Auto-correction___________________________________
 
 
 def pix_average(im, x, y):
@@ -1260,7 +1260,7 @@ def pix_average(im, x, y):
     return r, g, b
 
 
-# ________________________________________________________________Farben_ermitteln________________________________________________________
+# ________________________________________________________________Detect Colors________________________________________________________
 
 
 # 0 = U
@@ -1408,7 +1408,7 @@ def get_sticker():
 
                 col_sticker[img_iter * 9 + 3 * y_iter + x_iter] = color
 
-    # Korrektur oben      //sticker are not in correct order due to movements at reading the cube
+    # Correction top - stickers are not in correct order due to movements when reading the cube
     dummy_1 = col_sticker[0]
     dummy_2 = col_sticker[1]
     col_sticker[0] = col_sticker[6]
@@ -1420,7 +1420,7 @@ def get_sticker():
     col_sticker[2] = dummy_1
     col_sticker[5] = dummy_2
 
-    # Korrektur unten
+    # Correction bottom
     dummy_1 = col_sticker[27]
     dummy_2 = col_sticker[28]
     col_sticker[27] = col_sticker[33]
@@ -1502,8 +1502,8 @@ def setup():
         f.write(str(SLEEP) + "\n")
         f.write(str(regrip_stat) + "\n")
         f.close()
-        print("Default gesichert")
-        return False  # beim ersten Durchgang werden alle Servos auf 0 gestellt damit die Arme richtig montiert werden kxnnen
+        print("Defaults saved")
+        return False  # on the first run all servos are set to 0 so the arms can be mounted correctly
 
 
 # _________________________________________Scan_cube_Own_Pattern________________________________
@@ -1569,7 +1569,7 @@ def scramble():
     for x in solve_sequenze:
         single_action(x)
         message = "Rest: " + str(moves)
-        if state_machine == 0:  # DOUBLECLICK auf rightbutton
+        if state_machine == 0:  # DOUBLECLICK on right button
             break
     message = "Start"
     now = 0
@@ -1598,7 +1598,7 @@ def training():
 
     if (
         solve_array[2] == "F" or solve_array[2] == "F'"
-    ):  # index 2 wegen Probleme beim Entfernen der unnötigen Würfelwristungen in Trainer.py
+    ):  # index 2 due to problems removing unnecessary cube rotations in Trainer.py
         correct_right()
         correct_right()
         correct_right()
@@ -1620,7 +1620,7 @@ def training():
     for x in solve_sequenze:
         single_action(x)
         message = "Rest: " + str(moves)
-        if state_machine == 0:  # DOUBLECLICK auf rightbutton
+        if state_machine == 0:  # DOUBLECLICK on right button
             break
     message = "Start"
     now = 0
@@ -1640,7 +1640,7 @@ setup()
 now = 0
 move_count = 0
 
-t = Thread(target=Anzeige)
+t = Thread(target=display)
 t.start()
 
 s = Thread(target=my_timer)
@@ -1663,7 +1663,7 @@ while endless == 1:
 
     solve_sequenze = ""
 
-    while state_machine != 99:  # warten bis "start"
+    while state_machine != 99:  # wait for "start"
         i = 1
 
     setDirection_left_grip(left_grip_tune)
@@ -1705,7 +1705,7 @@ while endless == 1:
     for x in solve_sequenze:
         single_action(x)
         message = "Rest: " + str(moves)
-        if state_machine == 0:  # DOUBLECLICK auf rightbutton
+        if state_machine == 0:  # DOUBLECLICK on right button
             message = "Start"
             now = 0
             break
