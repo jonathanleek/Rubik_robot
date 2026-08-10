@@ -190,10 +190,14 @@ def pca9685_config():
         pwm_freq=300,
         grip_adds_tune_on_open=True,
         regrip_before_r_moves=False,
-        left_grip=ServoConfig(270, 2.0, 0.0),
-        left_turn=ServoConfig(270, 2.0, 0.0),
-        right_grip=ServoConfig(270, 2.0, 0.0),
-        right_turn=ServoConfig(270, 2.0, 0.0),
+        # offset is the minimum pulse width in ms (DS3218: ~0.5 ms = 0 deg,
+        # ~2.5 ms = 270 deg). offset was previously 0.0, which produced
+        # sub-0.5 ms pulses for low angles (e.g. the 0-50 deg gripper range),
+        # too short for the servo to position -- so grippers stayed pinned.
+        left_grip=ServoConfig(270, 2.0, 0.5),
+        left_turn=ServoConfig(270, 2.0, 0.5),
+        right_grip=ServoConfig(270, 2.0, 0.5),
+        right_turn=ServoConfig(270, 2.0, 0.5),
         pixels=PixelLocations(
             top_row=230, mid_row=500, bot_row=730,
             lft_col=230, mid_col=450, rgt_col=730,
