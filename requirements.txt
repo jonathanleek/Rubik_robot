@@ -5,7 +5,11 @@ flask>=2.0
 
 # Raspberry Pi hardware
 RPi.GPIO>=0.7
-picamera>=1.13
+# Camera uses picamera2 (libcamera stack), which must be installed via the
+# system package manager -- it is NOT a pip dependency:
+#     sudo apt install -y python3-picamera2
+# (Required on Raspberry Pi OS Bookworm; the old `picamera` library only
+#  worked on Bullseye and earlier.)
 
 # Image processing
 Pillow>=8.0
