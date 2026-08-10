@@ -92,15 +92,29 @@ class CalibrationManager:
     def setup_buttons(self):
         """Set up the three physical buttons and register callbacks.
 
-        Called once during robot initialization. Only applicable for
-        the PCA9685 variant which has physical buttons.
+        Called once during robot initialization. Only applicable for the
+        PCA9685 variant which has physical buttons.
+
+        Degrades gracefully: if the buttons cannot be initialized -- e.g.
+        none are wired, or the GPIO library does not support edge
+        detection (RPi.GPIO's add_event_detect fails on Raspberry Pi OS
+        Bookworm) -- the robot continues without physical buttons and
+        calibration remains available through the HTTP API.
         """
-        self._plus = Button(PLUS_BUTTON_PIN)
-        self._minus = Button(MINUS_BUTTON_PIN)
-        self._enter = Button(ENTER_BUTTON_PIN)
-        self._plus.add_extended_listener(self._on_plus)
-        self._minus.add_extended_listener(self._on_minus)
-        self._enter.add_extended_listener(self._on_enter)
+        self._plus = self._minus = self._enter = None
+        try:
+            self._plus = Button(PLUS_BUTTON_PIN)
+            self._minus = Button(MINUS_BUTTON_PIN)
+            self._enter = Button(ENTER_BUTTON_PIN)
+            self._plus.add_extended_listener(self._on_plus)
+            self._minus.add_extended_listener(self._on_minus)
+            self._enter.add_extended_listener(self._on_enter)
+        except (RuntimeError, OSError) as e:
+            # Physical buttons unavailable (not wired, or edge detection
+            # unsupported on this OS). Continue without them.
+            self._plus = self._minus = self._enter = None
+            print(f"[calibration] Physical buttons disabled ({e}). "
+                  f"Use the /calibration API for tuning.")
 
     def start_calibration(self):
         """Enter calibration mode, starting with left gripper tuning.
