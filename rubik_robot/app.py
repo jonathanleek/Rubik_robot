@@ -377,4 +377,54 @@ def create_app(driver_type="pca9685"):
         finally:
             robot.release_lock()
 
+    @app.route("/config", methods=["GET"])
+    def get_config():
+        """Get the servo geometry (positions + safety clamps).
+
+        Returns:
+            200: {"geometry": {
+                    "left_grip":  {"open":120,"closed":70,"load":108,"min":62,"max":145},
+                    "right_grip": {...},
+                    "left_turn":  {"m":45,"n":135,"o":225,"min":40,"max":230},
+                    "right_turn": {...}
+                 }}
+
+        Never blocks -- safe to read while the robot is busy.
+        """
+        return jsonify(robot.get_config())
+
+    @app.route("/config", methods=["POST"])
+    def set_config():
+        """Update servo geometry, persist to robot_config.json, apply live.
+
+        Send only the servos/keys you want to change. Grippers accept
+        open/closed/load/min/max; wrists accept m/n/o/min/max.
+
+        Request body (JSON):
+            {"right_grip": {"closed": 88}, "left_turn": {"n": 134}}
+
+        Returns:
+            200: full updated geometry (same shape as GET /config)
+            400: {"error": "..."}   -- bad JSON, unknown servo/key, or non-number
+            409: {"error": "Robot is busy..."}
+        """
+        data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({
+                "error": "Expected a JSON object of {servo: {key: value}}."
+            }), 400
+
+        busy = with_lock("config update")
+        if busy:
+            return busy
+        try:
+            result = robot.set_config(data)
+            return jsonify(result)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except Exception as e:
+            return jsonify({"error": f"Config update failed: {str(e)}"}), 500
+        finally:
+            robot.release_lock()
+
     return app

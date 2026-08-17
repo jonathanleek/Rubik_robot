@@ -10,6 +10,7 @@ To add a new hardware variant, subclass HardwareConfig and override the
 relevant constants.
 """
 
+import json
 import os
 from dataclasses import dataclass, field
 
@@ -18,6 +19,81 @@ from dataclasses import dataclass, field
 # Home directory -- all runtime files (images, calibration) live here
 # ---------------------------------------------------------------------------
 HOME = "/home/pi/"
+
+# ---------------------------------------------------------------------------
+# Servo geometry -- API-editable, persisted motion positions.
+#
+# Each servo's key positions are stored as raw servo command values (the same
+# units /calibration/test uses -- effectively degrees). This is what you tune
+# during calibration, so it can be edited live via the /config API and saved
+# to robot_config.json without touching code.
+#
+#   grippers (left_grip / right_grip): open, closed, load
+#   wrists   (left_turn / right_turn): m (0 deg), n (90 deg / neutral), o (180)
+#   all servos: min / max -- SAFE CLAMP limits. The robot's own moves are
+#   clamped to [min, max] so a command can never drive a servo into a hard
+#   stop (this is what prevents stripped grippers). /calibration/test is left
+#   unclamped so you can still explore/re-clock during calibration.
+# ---------------------------------------------------------------------------
+GEOMETRY_PATH = os.path.join(HOME, "robot_config.json")
+
+# Valid keys per servo (used to filter API updates)
+_GRIP_KEYS = ("open", "closed", "load", "min", "max")
+_TURN_KEYS = ("m", "n", "o", "min", "max")
+
+
+def default_geometry():
+    """Return the default servo geometry (calibrated 2026-08-16)."""
+    return {
+        "left_grip":  {"open": 120, "closed": 70, "load": 108, "min": 62, "max": 145},
+        "right_grip": {"open": 120, "closed": 90, "load": 108, "min": 62, "max": 145},
+        "left_turn":  {"m": 45, "n": 135, "o": 225, "min": 40, "max": 230},
+        "right_turn": {"m": 40, "n": 135, "o": 230, "min": 35, "max": 235},
+    }
+
+
+def load_geometry(path=None):
+    """Load servo geometry, applying robot_config.json overrides over defaults.
+
+    Missing file or missing keys fall back to the defaults, so a partial
+    override file is fine.
+    """
+    if path is None:
+        path = GEOMETRY_PATH
+    geo = default_geometry()
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                saved = json.load(f)
+            for servo, vals in saved.items():
+                if servo in geo and isinstance(vals, dict):
+                    for k, v in vals.items():
+                        if k in geo[servo]:
+                            geo[servo][k] = v
+        except (ValueError, OSError):
+            # Corrupt/unreadable file -- fall back to defaults rather than crash
+            pass
+    return geo
+
+
+def save_geometry(geo, path=None):
+    """Persist servo geometry to robot_config.json."""
+    if path is None:
+        path = GEOMETRY_PATH
+    with open(path, "w") as f:
+        json.dump(geo, f, indent=2, sort_keys=True)
+
+
+def clamp_value(geo, servo_key, value):
+    """Clamp a servo command value to that servo's safe [min, max] range."""
+    limits = geo.get(servo_key, {})
+    lo = limits.get("min")
+    hi = limits.get("max")
+    if lo is not None and value < lo:
+        value = lo
+    if hi is not None and value > hi:
+        value = hi
+    return value
 
 # ---------------------------------------------------------------------------
 # Image capture settings (shared by both variants)
@@ -145,6 +221,10 @@ class HardwareConfig:
 
     # --- Camera pixel locations ---
     pixels: PixelLocations = field(default_factory=PixelLocations)
+
+    # --- Servo geometry (API-editable positions + safety clamps) ---
+    # Populated from robot_config.json at startup; see load_geometry().
+    geometry: dict = field(default_factory=default_geometry)
 
 
 def gpio_config():

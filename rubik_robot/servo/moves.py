@@ -27,6 +27,8 @@ to 0, close right grip, open left grip, left wrist to 90, close left grip.
 
 import time
 
+from rubik_robot.config import clamp_value
+
 
 class ServoState:
     """Tracks the current position of both wrist servos.
@@ -69,7 +71,7 @@ def _compute_duty(servo_config, direction, overshoot=0):
 # Directional servo commands
 # ---------------------------------------------------------------------------
 
-def set_left_turn(driver, config, cal, direction, sleep_factor):
+def set_left_turn(driver, config, cal, direction, sleep_factor, clamp=True):
     """Move the left wrist servo to the specified angle.
 
     Args:
@@ -79,13 +81,18 @@ def set_left_turn(driver, config, cal, direction, sleep_factor):
         direction: Target angle in degrees (including tune offset).
         sleep_factor: Multiplier for the settling delay (1 for 90-degree
             moves, sleep_long_factor for 180-degree moves).
+        clamp: If True, clamp the target to the servo's safe [min, max]
+            range from config.geometry (prevents driving into a hard stop).
+            Calibration/test moves pass clamp=False to allow the full range.
     """
+    if clamp:
+        direction = clamp_value(config.geometry, "left_turn", direction)
     duty = _compute_duty(config.left_turn, direction + config.overshoot)
     driver.set_left_turn(duty)
     time.sleep(cal.sleep * sleep_factor)
 
 
-def set_left_grip(driver, config, cal, direction):
+def set_left_grip(driver, config, cal, direction, clamp=True):
     """Move the left gripper servo to the specified angle.
 
     Args:
@@ -94,13 +101,16 @@ def set_left_grip(driver, config, cal, direction):
         cal: CalibrationValues (not used for grip duty, but sleep_grip
             comes from config).
         direction: Target angle in degrees.
+        clamp: If True, clamp to the servo's safe [min, max] range.
     """
+    if clamp:
+        direction = clamp_value(config.geometry, "left_grip", direction)
     duty = _compute_duty(config.left_grip, direction)
     driver.set_left_grip(duty)
     time.sleep(config.sleep_grip)
 
 
-def set_right_turn(driver, config, cal, direction, sleep_factor):
+def set_right_turn(driver, config, cal, direction, sleep_factor, clamp=True):
     """Move the right wrist servo to the specified angle.
 
     Args:
@@ -109,13 +119,16 @@ def set_right_turn(driver, config, cal, direction, sleep_factor):
         cal: CalibrationValues with wrist tune offset.
         direction: Target angle in degrees (including tune offset).
         sleep_factor: Multiplier for the settling delay.
+        clamp: If True, clamp to the servo's safe [min, max] range.
     """
+    if clamp:
+        direction = clamp_value(config.geometry, "right_turn", direction)
     duty = _compute_duty(config.right_turn, direction + config.overshoot)
     driver.set_right_turn(duty)
     time.sleep(cal.sleep * sleep_factor)
 
 
-def set_right_grip(driver, config, cal, direction):
+def set_right_grip(driver, config, cal, direction, clamp=True):
     """Move the right gripper servo to the specified angle.
 
     Args:
@@ -123,7 +136,10 @@ def set_right_grip(driver, config, cal, direction):
         config: HardwareConfig with servo parameters.
         cal: CalibrationValues (not used for grip duty).
         direction: Target angle in degrees.
+        clamp: If True, clamp to the servo's safe [min, max] range.
     """
+    if clamp:
+        direction = clamp_value(config.geometry, "right_grip", direction)
     duty = _compute_duty(config.right_grip, direction)
     driver.set_right_grip(duty)
     time.sleep(config.sleep_grip)
@@ -149,17 +165,23 @@ def regrip(driver, config, cal):
         config: HardwareConfig with servo parameters.
         cal: CalibrationValues with grip tune offsets and load position.
     """
-    # Open to load position
-    duty = _compute_duty(config.left_grip, cal.load + cal.left_grip_tune)
+    geo = config.geometry
+
+    # Open both grippers to their load (release) position simultaneously
+    duty = _compute_duty(config.left_grip,
+                         clamp_value(geo, "left_grip", geo["left_grip"]["load"]))
     driver.set_left_grip(duty)
-    duty = _compute_duty(config.right_grip, cal.load + cal.right_grip_tune)
+    duty = _compute_duty(config.right_grip,
+                         clamp_value(geo, "right_grip", geo["right_grip"]["load"]))
     driver.set_right_grip(duty)
     time.sleep(cal.sleep / 2)
 
-    # Close fully
-    duty = _compute_duty(config.left_grip, cal.left_grip_tune)
+    # Close both grippers to their gripping position simultaneously
+    duty = _compute_duty(config.left_grip,
+                         clamp_value(geo, "left_grip", geo["left_grip"]["closed"]))
     driver.set_left_grip(duty)
-    duty = _compute_duty(config.right_grip, cal.right_grip_tune)
+    duty = _compute_duty(config.right_grip,
+                         clamp_value(geo, "right_grip", geo["right_grip"]["closed"]))
     driver.set_right_grip(duty)
     time.sleep(cal.sleep / 2)
 
@@ -176,12 +198,13 @@ def home_servos(driver, config, cal, state):
         cal: CalibrationValues with tune offsets.
         state: ServoState to update with new positions.
     """
-    set_left_turn(driver, config, cal, 90 + cal.left_wrist_tune, 1)
-    set_right_turn(driver, config, cal, 90 + cal.right_wrist_tune, 1)
+    geo = config.geometry
+    set_left_turn(driver, config, cal, geo["left_turn"]["n"], 1)
+    set_right_turn(driver, config, cal, geo["right_turn"]["n"], 1)
     time.sleep(cal.sleep)
     regrip(driver, config, cal)
-    set_left_grip(driver, config, cal, cal.load + cal.left_grip_tune)
-    set_right_grip(driver, config, cal, cal.load + cal.right_grip_tune)
+    set_left_grip(driver, config, cal, geo["left_grip"]["load"])
+    set_right_grip(driver, config, cal, geo["right_grip"]["load"])
     time.sleep(cal.sleep)
     state.l_pos = 90
     state.r_pos = 90
@@ -205,74 +228,62 @@ def single_action(action, driver, config, cal, state):
         cal: CalibrationValues with tune offsets.
         state: ServoState tracking current positions.
     """
+    geo = config.geometry
+
     if action == "A":
         # Left gripper close
-        set_left_grip(driver, config, cal, cal.left_grip_tune)
+        set_left_grip(driver, config, cal, geo["left_grip"]["closed"])
 
     elif action == "a":
         # Left gripper open
-        if config.grip_adds_tune_on_open:
-            set_left_grip(driver, config, cal,
-                          config.gripper_max + cal.left_grip_tune)
-        else:
-            set_left_grip(driver, config, cal, config.gripper_max)
+        set_left_grip(driver, config, cal, geo["left_grip"]["open"])
 
     elif action == "B":
         # Right gripper close
-        set_right_grip(driver, config, cal, cal.right_grip_tune)
+        set_right_grip(driver, config, cal, geo["right_grip"]["closed"])
 
     elif action == "b":
         # Right gripper open
-        if config.grip_adds_tune_on_open:
-            set_right_grip(driver, config, cal,
-                           config.gripper_max + cal.right_grip_tune)
-        else:
-            set_right_grip(driver, config, cal, config.gripper_max)
+        set_right_grip(driver, config, cal, geo["right_grip"]["open"])
 
     elif action == "M":
         # Left wrist to 0 degrees
         if state.l_pos != 0:
             sleep = 1 if state.l_pos == 90 else config.sleep_long_factor
-            set_left_turn(driver, config, cal,
-                          0 + cal.left_wrist_tune, sleep)
+            set_left_turn(driver, config, cal, geo["left_turn"]["m"], sleep)
             state.l_pos = 0
 
     elif action == "N":
-        # Left wrist to 90 degrees
+        # Left wrist to 90 degrees (neutral)
         if state.l_pos != 90:
-            set_left_turn(driver, config, cal,
-                          90 + cal.left_wrist_tune, 1)
+            set_left_turn(driver, config, cal, geo["left_turn"]["n"], 1)
             state.l_pos = 90
 
     elif action == "O":
         # Left wrist to 180 degrees
         if state.l_pos != 180:
             sleep = 1 if state.l_pos == 90 else config.sleep_long_factor
-            set_left_turn(driver, config, cal,
-                          180 + cal.left_wrist_tune, sleep)
+            set_left_turn(driver, config, cal, geo["left_turn"]["o"], sleep)
             state.l_pos = 180
 
     elif action == "X":
         # Right wrist to 0 degrees
         if state.r_pos != 0:
             sleep = 1 if state.r_pos == 90 else config.sleep_long_factor
-            set_right_turn(driver, config, cal,
-                           0 + cal.right_wrist_tune, sleep)
+            set_right_turn(driver, config, cal, geo["right_turn"]["m"], sleep)
             state.r_pos = 0
 
     elif action == "Y":
-        # Right wrist to 90 degrees
+        # Right wrist to 90 degrees (neutral)
         if state.r_pos != 90:
-            set_right_turn(driver, config, cal,
-                           90 + cal.right_wrist_tune, 1)
+            set_right_turn(driver, config, cal, geo["right_turn"]["n"], 1)
             state.r_pos = 90
 
     elif action == "Z":
         # Right wrist to 180 degrees
         if state.r_pos != 180:
             sleep = 1 if state.r_pos == 90 else config.sleep_long_factor
-            set_right_turn(driver, config, cal,
-                           180 + cal.right_wrist_tune, sleep)
+            set_right_turn(driver, config, cal, geo["right_turn"]["o"], sleep)
             state.r_pos = 180
 
     elif action == "R":

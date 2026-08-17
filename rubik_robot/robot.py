@@ -22,6 +22,8 @@ import atexit
 from rubik_robot.config import (
     CalibrationValues, HardwareConfig,
     gpio_config, pca9685_config,
+    load_geometry, save_geometry,
+    _GRIP_KEYS, _TURN_KEYS,
     SCRAMBLE_MAX,
 )
 from rubik_robot.hardware.gpio_driver import GPIODriver
@@ -124,6 +126,10 @@ class RobotController:
         # Load saved calibration values
         self.calibration = CalibrationValues.load_from_file()
 
+        # Load persisted servo geometry (positions + safety clamps) from
+        # robot_config.json, falling back to code defaults.
+        self.config.geometry = load_geometry()
+
         # Initialize servo hardware
         self.driver.setup()
         time.sleep(self.calibration.sleep)
@@ -202,9 +208,9 @@ class RobotController:
 
         # Close grippers to hold the cube
         set_left_grip(self.driver, self.config, self.calibration,
-                      self.calibration.left_grip_tune)
+                      self.config.geometry["left_grip"]["closed"])
         set_right_grip(self.driver, self.config, self.calibration,
-                       self.calibration.right_grip_tune)
+                       self.config.geometry["right_grip"]["closed"])
 
         # Photograph all six faces
         get_cube(self.driver, self.config, self.calibration,
@@ -440,6 +446,61 @@ class RobotController:
 
         return self.get_calibration()
 
+    def get_config(self):
+        """Return the current servo geometry (positions + safety clamps).
+
+        Returns:
+            dict with a "geometry" key mapping each servo to its positions
+            and min/max clamp values.
+        """
+        return {"geometry": self.config.geometry}
+
+    def set_config(self, values):
+        """Update servo geometry, persist to robot_config.json, apply live.
+
+        Only recognized servos/keys are updated; anything else is ignored.
+        Grippers accept open/closed/load/min/max; wrists accept m/n/o/min/max.
+
+        Args:
+            values: dict of {servo_name: {key: value, ...}}, e.g.
+                {"right_grip": {"closed": 88}, "left_turn": {"n": 134}}.
+
+        Returns:
+            The full updated geometry (same shape as get_config()).
+
+        Raises:
+            ValueError: If a servo name is unknown or a value is non-numeric.
+        """
+        geo = self.config.geometry
+        allowed = {
+            "left_grip": _GRIP_KEYS, "right_grip": _GRIP_KEYS,
+            "left_turn": _TURN_KEYS, "right_turn": _TURN_KEYS,
+        }
+        for servo, fields in values.items():
+            if servo not in allowed:
+                raise ValueError(
+                    f"Unknown servo: {servo}. Must be one of: "
+                    f"{sorted(allowed)}"
+                )
+            if not isinstance(fields, dict):
+                raise ValueError(f"Value for {servo} must be an object of keys.")
+            for key, val in fields.items():
+                if key not in allowed[servo]:
+                    raise ValueError(
+                        f"Unknown key '{key}' for {servo}. "
+                        f"Valid keys: {sorted(allowed[servo])}"
+                    )
+                try:
+                    geo[servo][key] = float(val)
+                except (ValueError, TypeError):
+                    raise ValueError(
+                        f"Value for {servo}.{key} must be a number, got {val!r}."
+                    )
+
+        save_geometry(geo)
+        self.display.show("Config saved", "")
+        return self.get_config()
+
     def test_servo(self, servo_name, value):
         """Move a single servo to a specific position for testing.
 
@@ -457,14 +518,21 @@ class RobotController:
         Raises:
             ValueError: If servo_name is not recognized.
         """
+        # Calibration/test moves are intentionally UNCLAMPED so you can
+        # explore the full range and re-clock horns. The robot's own moves
+        # (single_action/regrip/home) stay clamped to the safe range.
         if servo_name == "left_grip":
-            set_left_grip(self.driver, self.config, self.calibration, value)
+            set_left_grip(self.driver, self.config, self.calibration, value,
+                          clamp=False)
         elif servo_name == "left_turn":
-            set_left_turn(self.driver, self.config, self.calibration, value, 1)
+            set_left_turn(self.driver, self.config, self.calibration, value, 1,
+                          clamp=False)
         elif servo_name == "right_grip":
-            set_right_grip(self.driver, self.config, self.calibration, value)
+            set_right_grip(self.driver, self.config, self.calibration, value,
+                           clamp=False)
         elif servo_name == "right_turn":
-            set_right_turn(self.driver, self.config, self.calibration, value, 1)
+            set_right_turn(self.driver, self.config, self.calibration, value, 1,
+                           clamp=False)
         else:
             raise ValueError(
                 f"Unknown servo: {servo_name}. "
