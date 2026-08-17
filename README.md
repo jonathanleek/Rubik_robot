@@ -12,7 +12,7 @@ The robot supports two servo control methods:
 
 | Variant | Flag | Description |
 |---------|------|-------------|
-| **PCA9685** | `--driver pca9685` | Uses an Adafruit PCA9685 I2C PWM driver board. Provides stable, jitter-free servo control. Includes OLED display and physical buttons for calibration. **Recommended.** |
+| **PCA9685** | `--driver pca9685` | Uses a PCA9685 I2C PWM driver board. Provides stable, jitter-free servo control. Calibrated via the API (`/config`); an OLED display + buttons are optional. **Recommended.** |
 | **GPIO** | `--driver gpio` | Uses the Raspberry Pi's built-in GPIO pins for PWM. Simpler hardware setup but may exhibit servo jitter. No display or buttons -- calibration is done via the API. |
 
 ---
@@ -21,31 +21,40 @@ The robot supports two servo control methods:
 
 ### Prerequisites
 
-- Raspberry Pi (tested on Pi 3B+ and Pi 4)
-- Raspbian/Raspberry Pi OS (Bullseye or later)
-- Python 3.7+
-- PiCamera module (connected and enabled)
+- Raspberry Pi (tested on Pi 3B, 3B+, and Pi 4)
+- Raspberry Pi OS **Bookworm** (recommended) or Bullseye
+- Python 3.9+
+- Raspberry Pi Camera module (connected and enabled)
 - Servo motors and mechanical assembly (see [Thingiverse](https://www.thingiverse.com/thing:3826740))
-- For PCA9685 variant: Adafruit PCA9685 PWM driver board, SSD1306 OLED display, 3 push buttons
+- For PCA9685 variant: Adafruit/compatible PCA9685 PWM driver board. An SSD1306
+  OLED display and 3 push buttons are **optional** (on-device calibration UI) --
+  the robot runs fine without them and is calibrated via the API.
+
+> **Camera stack:** on **Bookworm** the camera uses **`picamera2`** (libcamera),
+> installed as a system package (below). On older Bullseye you would instead use the
+> legacy `picamera`; this codebase targets `picamera2`.
 
 ### Step 1: Enable required interfaces
 
 ```bash
-sudo raspi-config
+sudo raspi-config nonint do_i2c 0      # enable I2C (PCA9685 + OLED)
 ```
 
-Enable the following under **Interface Options**:
-- **Camera** (for PiCamera)
-- **I2C** (for PCA9685 and OLED display -- PCA9685 variant only)
-
-Reboot after making changes.
+On **Bookworm** the camera is auto-detected via libcamera -- no toggle needed.
+Make sure the **legacy camera is OFF** (it disables libcamera). Check
+`/boot/firmware/config.txt` has `camera_auto_detect=1` and no `start_x=1`, then
+reboot. Verify with `rpicam-hello --list-cameras` (should list your sensor).
 
 ### Step 2: Install system dependencies
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-dev libatlas-base-dev libjpeg-dev zlib1g-dev
+sudo apt-get install -y git i2c-tools python3-pip python3-dev \
+    python3-picamera2 libatlas-base-dev libjpeg-dev zlib1g-dev
 ```
+
+`python3-picamera2` **must** come from apt (it depends on the system libcamera
+stack) -- it is intentionally not a pip dependency.
 
 ### Step 3: Clone and install the project
 
@@ -53,12 +62,19 @@ sudo apt-get install -y python3-pip python3-dev libatlas-base-dev libjpeg-dev zl
 cd /home/pi
 git clone <your-repo-url> rubik_robot
 cd rubik_robot
-pip3 install -r requirements.txt
+pip3 install -r requirements.txt --break-system-packages
 ```
 
-### Step 4: Install the font file
+On Bookworm, `--break-system-packages` is required (PEP 668). For a dedicated
+appliance Pi this is fine; alternatively use a virtualenv created with
+`--system-site-packages` so it can reach the apt-installed `picamera2`.
 
-The OLED display (PCA9685 variant) uses the VCR OSD Mono font. Download it from [dafont.com](https://www.dafont.com/vcr-osd-mono.font) and place it in the home directory:
+### Step 4: Install the font file (optional -- only if using the OLED)
+
+If you use the optional SSD1306 OLED display, it needs the VCR OSD Mono font.
+Download it from [dafont.com](https://www.dafont.com/vcr-osd-mono.font) and place it
+in the home directory. Skip this if you have no display (the code falls back to a
+null display automatically):
 
 ```bash
 cp VCR_OSD_MONO_1.001.ttf /home/pi/
@@ -92,10 +108,19 @@ pip3 install kociemba
 | Left gripper servo | PCA9685 channel 1 |
 | Right wrist servo | PCA9685 channel 2 |
 | Right gripper servo | PCA9685 channel 3 |
-| OLED display | I2C, address 0x3C |
-| Plus button | GPIO pin 11 (BOARD) |
-| Minus button | GPIO pin 13 (BOARD) |
-| Enter button | GPIO pin 15 (BOARD) |
+| OLED display *(optional)* | I2C, address 0x3C |
+| Plus button *(optional)* | GPIO pin 11 (BOARD) |
+| Minus button *(optional)* | GPIO pin 13 (BOARD) |
+| Enter button *(optional)* | GPIO pin 15 (BOARD) |
+
+> **Servo power:** power the servos from a dedicated 5&nbsp;V supply into the
+> PCA9685 `V+` screw terminal -- **not** from the Pi. See
+> [`docs/hardware-upgrade-plan.md`](docs/hardware-upgrade-plan.md) for a
+> single-USB-C power build (PD trigger &rarr; 5&nbsp;V/10&nbsp;A buck &rarr; Pi + PCA9685).
+>
+> **No buttons?** On Raspberry Pi OS Bookworm, `RPi.GPIO` edge detection is
+> unsupported, so physical-button setup is skipped automatically -- calibrate via
+> the API instead.
 
 ### Step 7: Start the server
 
@@ -147,53 +172,76 @@ sudo systemctl start rubik-robot
 
 ## Servo Calibration
 
-Calibration adjusts servo positions so the grippers align properly with the cube. Calibration values are saved to `~/tune_values.txt` and persist across restarts.
+Calibration has two layers:
 
-### Calibration parameters
+1. **Servo geometry** (`/config`) -- the servo command values for each key position,
+   plus per-servo safety clamps. Persisted to **`~/robot_config.json`**. This is the
+   main calibration and is fully API-editable (no code edits).
+2. **Runtime tuning** (`/calibration`) -- timing/behavior (`sleep`, `regrip_enabled`).
+   Persisted to `~/tune_values.txt`.
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `left_grip_tune` | Offset for the left gripper closed position (degrees) | 0 |
-| `left_wrist_tune` | Offset for the left wrist center position (degrees) | 0 |
-| `right_grip_tune` | Offset for the right gripper closed position (degrees) | 0 |
-| `right_wrist_tune` | Offset for the right wrist center position (degrees) | 0 |
-| `load` | Gripper angle for the release/load position (degrees) | 30 |
-| `sleep` | Servo settling delay in seconds | 0.5 |
-| `regrip_enabled` | Whether to regrip between layer moves | true |
+### Servo geometry model
 
-### Calibrating via physical buttons (PCA9685 only)
+Every position is a raw servo command value (degrees; same units as
+`/calibration/test`). `GET /config` returns:
 
-1. Press the **Enter** button to start calibration
-2. The OLED display shows the current parameter and value
-3. Press **Plus/Minus** to adjust the value (increments of 2)
-4. Press **Enter** to advance to the next parameter
-5. After the last parameter (Regrip), press **Enter** to save and exit
-6. Double-click **Enter** at any point to cancel without saving
+| Servo | Keys | Meaning |
+|-------|------|---------|
+| `left_grip`, `right_grip` | `open`, `closed`, `load` | jaws open / firm grip / loose hold |
+| `left_turn`, `right_turn` | `m`, `n`, `o` | wrist at 0° / 90° (neutral) / 180° |
+| *(all servos)* | `min`, `max` | **safety clamp** -- robot moves are clamped to this range |
 
-### Calibrating via the API
+**Safety clamps:** the robot's own motions (moves, regrip, home) are clamped to each
+servo's `[min, max]`, so a command can never drive a servo into a mechanical hard
+stop. `POST /calibration/test` is intentionally **unclamped** so you can explore the
+full range and re-clock horns during calibration.
+
+### Calibration workflow (recommended)
+
+1. **Detach the load** from the servo (disconnect the gripper linkage or pull the
+   horn) so the servo turns unloaded -- zero risk of straining a part.
+2. **Sweep** with `POST /calibration/test` (unclamped) to find the servo value for
+   each key position (open/closed/load, or wrist m/n/o).
+3. **Save** those values with `POST /config` (persisted to `robot_config.json`).
+4. **Set `min`/`max`** just inside the hard stops so normal moves stay safe.
+5. **Reconnect** and verify with `POST /home` and single moves.
 
 ```bash
-# View current calibration
-curl http://<pi-ip>:5000/calibration
+# View the full geometry
+curl http://<pi-ip>:5000/config
 
-# Update specific values
-curl -X POST http://<pi-ip>:5000/calibration \
-  -H "Content-Type: application/json" \
-  -d '{"left_grip_tune": 4, "sleep": 0.45}'
-
-# Test a single servo position
+# Test a single servo position (UNCLAMPED -- for calibration)
 curl -X POST http://<pi-ip>:5000/calibration/test \
   -H "Content-Type: application/json" \
-  -d '{"servo": "left_grip", "value": 10}'
+  -d '{"servo": "left_grip", "value": 65}'
+
+# Persist a calibrated value (any subset of servos/keys)
+curl -X POST http://<pi-ip>:5000/config \
+  -H "Content-Type: application/json" \
+  -d '{"left_grip": {"closed": 65}, "right_turn": {"o": 235}}'
+
+# Runtime tuning (timing/behavior)
+curl -X POST http://<pi-ip>:5000/calibration \
+  -H "Content-Type: application/json" \
+  -d '{"sleep": 0.45, "regrip_enabled": true}'
 ```
 
 ### Calibration tips
 
-1. **First run**: On the first run, all servos go to 0 degrees. Attach the gripper arms so they are roughly aligned at this position.
-2. **Grip tune**: Adjust until the gripper closes squarely on the cube without excessive force.
-3. **Wrist tune**: Adjust until the wrist is centered at exactly 90 degrees (cube faces align with the camera).
-4. **Load position**: This is how far the grippers open during a regrip. Too small and the cube won't seat properly; too large and the cube may fall.
-5. **Sleep delay**: Increase if servos don't fully reach their target position; decrease for faster solving.
+1. **Grip (`closed`)**: tighten until the gripper holds the cube squarely without
+   straining. Foam pads on the fingers add compliance and grip.
+2. **Load**: the loose hold between moves -- cube retained but not clamped. Too open
+   and it falls; too closed and it can't reseat during a regrip.
+3. **Wrist neutral (`n`)**: the cube-straight position; `m`/`o` are ±90° from it. If a
+   face turn falls a hair short, widen `m`/`o` (and the clamp) a few degrees.
+4. **Inconsistent moves** (same command, different results) almost always mean a
+   *mechanical* grip problem, not geometry -- geometry is deterministic.
+
+### Calibrating via physical buttons (optional, PCA9685 + OLED only)
+
+If the optional OLED + buttons are fitted, the old on-device flow still exists
+(Enter starts; Plus/Minus adjust; Enter advances; double-click Enter cancels). It
+edits the legacy `/calibration` tune values only. Most builds calibrate via the API.
 
 ---
 
@@ -396,6 +444,9 @@ Move a single servo to a specific position for testing during calibration.
 
 Valid servo names: `left_grip`, `left_turn`, `right_grip`, `right_turn`.
 
+This move is **unclamped** (unlike the robot's normal moves) so you can explore the
+full servo range and re-clock horns during calibration.
+
 **Response (200):**
 ```json
 {
@@ -403,6 +454,47 @@ Valid servo names: `left_grip`, `left_turn`, `right_grip`, `right_turn`.
   "value": 10
 }
 ```
+
+---
+
+### GET /config
+
+Get the servo geometry -- each servo's positions and safety-clamp limits. Never
+blocks (safe to read while the robot is busy).
+
+**Response (200):**
+```json
+{
+  "geometry": {
+    "left_grip":  {"open": 120, "closed": 65, "load": 80, "min": 62, "max": 145},
+    "right_grip": {"open": 120, "closed": 90, "load": 94, "min": 62, "max": 145},
+    "left_turn":  {"m": 45, "n": 135, "o": 225, "min": 40, "max": 230},
+    "right_turn": {"m": 35, "n": 135, "o": 235, "min": 30, "max": 240}
+  }
+}
+```
+
+---
+
+### POST /config
+
+Update servo geometry, applied live and persisted to `~/robot_config.json`. Send
+only the servos/keys you want to change. Grippers accept `open`/`closed`/`load`/
+`min`/`max`; wrists accept `m`/`n`/`o`/`min`/`max`.
+
+**Request:**
+```json
+{
+  "right_grip": {"closed": 88},
+  "left_turn": {"n": 134}
+}
+```
+
+**Response (200):** the full updated geometry (same format as GET /config).
+
+**Error (400):** unknown servo/key, or a non-numeric value.
+
+**Error (409):** robot is busy.
 
 ---
 
@@ -438,7 +530,7 @@ rubik_robot/
     __init__.py              # Package marker
     __main__.py              # Allows: python -m rubik_robot
     app.py                   # Flask routes and API endpoint definitions
-    config.py                # Hardware constants, calibration, pixel locations
+    config.py                # Hardware constants, servo geometry (robot_config.json), calibration, pixels
     robot.py                 # RobotController: central orchestrator
     run.py                   # CLI entry point with argument parsing
     hardware/
@@ -455,7 +547,7 @@ rubik_robot/
         calibration.py       # Physical button calibration state machine
     scanner/
         __init__.py
-        camera.py            # PiCamera wrapper
+        camera.py            # picamera2 (libcamera) wrapper
         color.py             # Sticker color detection via nearest-neighbor
         cube_reader.py       # Cube scanning choreography (rotate + photograph)
 ```
