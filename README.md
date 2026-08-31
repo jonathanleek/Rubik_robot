@@ -168,6 +168,24 @@ sudo systemctl enable rubik-robot
 sudo systemctl start rubik-robot
 ```
 
+### Step 9: Run as a WiFi hotspot (optional)
+
+To reach the API where there's no usable WiFi (e.g. a crowded conference), the
+Pi can host its own network instead of joining one. Connect your laptop/phone
+to the robot's `rubik-robot` network and call the API at
+`http://192.168.4.1:5000`.
+
+```bash
+sudo ./scripts/setup-hotspot.sh          # always-on hotspot, auto-detects OS stack
+sudo ./scripts/install-api-service.sh    # start the API on boot too (no SSH needed)
+```
+
+No network access to the Pi at all? The hotspot can also be enabled by editing
+only the SD card's `bootfs` partition on another computer -- see
+[docs/hotspot.md](docs/hotspot.md), which also covers customization, reverting
+to normal WiFi, and two Pi 3B-specific settings without which clients cannot
+authenticate.
+
 ---
 
 ## Servo Calibration
