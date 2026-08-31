@@ -1,0 +1,20 @@
+[Unit]
+Description=Rubik Robot API server
+# Wait for the network (the hotspot interface) to be up before binding.
+After=network-online.target
+Wants=network-online.target
+# Starting the server auto-homes the servos; do not let a crash loop re-home forever.
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/rubik_robot
+# --driver pca9685 is the default; change to gpio if you use the GPIO variant.
+ExecStart=/usr/bin/python3 -m rubik_robot.run --driver pca9685 --host 0.0.0.0 --port 5000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

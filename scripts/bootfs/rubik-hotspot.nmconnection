@@ -1,0 +1,42 @@
+# NetworkManager keyfile: Raspberry Pi as a standalone WiFi access point for the
+# Rubik Robot API. Installed by rubik-hotspot-firstrun.sh into
+# /etc/NetworkManager/system-connections/ (mode 0600, root-owned -- NM ignores
+# keyfiles with looser permissions). UUID intentionally omitted: NM derives one
+# from the filename.
+#
+# Result: SSID "rubik-robot", WPA2-PSK, Pi at 192.168.4.1, clients get
+# 192.168.4.x via NM's built-in DHCP (dnsmasq-base). No internet is shared.
+# Priority 100 beats the saved client WiFi profile (default 0) at boot.
+#
+# Pi 3B / Zero W (brcmfmac BCM43438) AP-mode gotchas -- both verified the hard way:
+#   * pmf=1 (disable 802.11w). brcmfmac cannot do Management Frame Protection in
+#     AP mode; with NM's default (optional) Apple/Android clients negotiate it and
+#     the WPA2 4-way handshake times out (macOS error -3925). raspberrypi/linux#3619
+#   * Do NOT set proto=/pairwise=/group= explicitly. On these chips that breaks
+#     the handshake for iOS/Android/macOS clients ("incorrect password" loop);
+#     the Zero 2 W / Pi 4 tolerate it. Leave them to NetworkManager's defaults.
+#     https://forums.raspberrypi.com/viewtopic.php?t=358481
+
+[connection]
+id=rubik-hotspot
+type=wifi
+interface-name=wlan0
+autoconnect=true
+autoconnect-priority=100
+
+[wifi]
+mode=ap
+ssid=rubik-robot
+band=bg
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=solvethecube
+pmf=1
+
+[ipv4]
+method=shared
+address1=192.168.4.1/24
+
+[ipv6]
+method=disabled
