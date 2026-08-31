@@ -67,6 +67,62 @@ def _compute_duty(servo_config, direction, overshoot=0):
             + servo_config.offset)
 
 
+# Last raw wrist-turn value commanded to each side, in degrees. Used as the
+# start point for slew-rate limiting (ramping). None until the first move of
+# the process, in which case that first move is issued directly (no ramp).
+_last_turn = {"left": None, "right": None}
+
+
+def reset_turn_ramp_state():
+    """Forget the tracked wrist positions (e.g. after a manual re-clock).
+
+    The next wrist move will then be issued directly instead of ramping from
+    a stale start point.
+    """
+    _last_turn["left"] = None
+    _last_turn["right"] = None
+
+
+def _ramp_turn(driver_set, servo_config, overshoot, side, target, cal):
+    """Drive a wrist servo to ``target`` degrees, easing the motion.
+
+    Instead of commanding the target in one jump (which makes the servo slew
+    at full speed and slam the horn spline with peak dynamic torque at each
+    end), step there in increments of ``cal.turn_ramp_step`` degrees with a
+    short ``cal.turn_ramp_delay`` pause between steps. This lowers the impact
+    torque on the spline and softens contact if the layer is jammed.
+
+    Ramping is skipped (direct set) when it's disabled (step <= 0) or the
+    start position is unknown (first move). Intermediate values always stay
+    between the last position and the target, both already within the servo's
+    safe range, so ramping can never push past a clamp.
+
+    Args:
+        driver_set: The driver method to call with a duty value
+            (e.g. driver.set_left_turn).
+        servo_config: ServoConfig for this wrist (for the duty calculation).
+        overshoot: Extra degrees added to overcome friction (config.overshoot).
+        side: "left" or "right" -- selects the tracked last position.
+        target: Target angle in degrees (already clamped by the caller).
+        cal: CalibrationValues providing turn_ramp_step / turn_ramp_delay.
+    """
+    last = _last_turn[side]
+    step = getattr(cal, "turn_ramp_step", 0) or 0
+    delay = getattr(cal, "turn_ramp_delay", 0) or 0
+
+    if step > 0 and last is not None and abs(target - last) > step:
+        sign = 1 if target > last else -1
+        value = last
+        while abs(target - value) > step:
+            value += sign * step
+            driver_set(_compute_duty(servo_config, value + overshoot))
+            time.sleep(delay)
+
+    # Final exact target (also the whole move when ramping is skipped).
+    driver_set(_compute_duty(servo_config, target + overshoot))
+    _last_turn[side] = target
+
+
 # ---------------------------------------------------------------------------
 # Directional servo commands
 # ---------------------------------------------------------------------------
@@ -87,8 +143,8 @@ def set_left_turn(driver, config, cal, direction, sleep_factor, clamp=True):
     """
     if clamp:
         direction = clamp_value(config.geometry, "left_turn", direction)
-    duty = _compute_duty(config.left_turn, direction + config.overshoot)
-    driver.set_left_turn(duty)
+    _ramp_turn(driver.set_left_turn, config.left_turn, config.overshoot,
+               "left", direction, cal)
     time.sleep(cal.sleep * sleep_factor)
 
 
@@ -123,8 +179,8 @@ def set_right_turn(driver, config, cal, direction, sleep_factor, clamp=True):
     """
     if clamp:
         direction = clamp_value(config.geometry, "right_turn", direction)
-    duty = _compute_duty(config.right_turn, direction + config.overshoot)
-    driver.set_right_turn(duty)
+    _ramp_turn(driver.set_right_turn, config.right_turn, config.overshoot,
+               "right", direction, cal)
     time.sleep(cal.sleep * sleep_factor)
 
 

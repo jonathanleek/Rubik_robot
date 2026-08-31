@@ -303,6 +303,13 @@ class CalibrationValues:
         sleep: Delay in seconds after each servo move to allow settling.
         regrip_enabled: Whether to perform a regrip before layer moves.
             Can be disabled if the robot's grip is tight enough.
+        turn_ramp_step: Micro-step size (degrees) for wrist-turn slew limiting.
+            A wrist move is broken into increments of this many degrees so the
+            servo eases into and out of the motion instead of snapping at full
+            speed, reducing the dynamic/impact torque on the horn spline.
+            Set to 0 to disable ramping (moves snap directly to target).
+        turn_ramp_delay: Delay (seconds) between micro-steps during a ramped
+            wrist turn. Larger = slower, gentler motion.
     """
     left_grip_tune: int = 0
     left_wrist_tune: int = 0
@@ -311,6 +318,8 @@ class CalibrationValues:
     load: int = 30
     sleep: float = 0.5
     regrip_enabled: bool = True
+    turn_ramp_step: float = 15.0
+    turn_ramp_delay: float = 0.02
 
     def save(self, path=None):
         """Save calibration values to a text file.
@@ -331,6 +340,8 @@ class CalibrationValues:
             f.write(str(self.load) + "\n")
             f.write(str(self.sleep) + "\n")
             f.write(str(1 if self.regrip_enabled else 0) + "\n")
+            f.write(str(self.turn_ramp_step) + "\n")
+            f.write(str(self.turn_ramp_delay) + "\n")
 
     @classmethod
     def load_from_file(cls, path=None):
@@ -359,6 +370,13 @@ class CalibrationValues:
                 sleep=float(lines[5].strip()),
                 regrip_enabled=int(lines[6].strip()) == 1,
             )
+            # Backward-compatible: ramp params were added later, so older
+            # tune_values.txt files may not have lines 7/8. Fall back to the
+            # dataclass defaults when they're absent.
+            if len(lines) > 7:
+                cal.turn_ramp_step = float(lines[7].strip())
+            if len(lines) > 8:
+                cal.turn_ramp_delay = float(lines[8].strip())
             return cal
         else:
             # First run: create defaults and save them

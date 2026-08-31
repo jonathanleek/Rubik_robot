@@ -409,6 +409,8 @@ class RobotController:
             "load": cal.load,
             "sleep": cal.sleep,
             "regrip_enabled": cal.regrip_enabled,
+            "turn_ramp_step": cal.turn_ramp_step,
+            "turn_ramp_delay": cal.turn_ramp_delay,
         }
 
     def set_calibration(self, values):
@@ -440,6 +442,10 @@ class RobotController:
             cal.sleep = float(values["sleep"])
         if "regrip_enabled" in values:
             cal.regrip_enabled = bool(values["regrip_enabled"])
+        if "turn_ramp_step" in values:
+            cal.turn_ramp_step = float(values["turn_ramp_step"])
+        if "turn_ramp_delay" in values:
+            cal.turn_ramp_delay = float(values["turn_ramp_delay"])
 
         cal.save()
         self.display.show("Cal saved", "")

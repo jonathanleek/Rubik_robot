@@ -106,34 +106,30 @@ def get_cube(driver, config, cal, state, camera):
     # Face 3 (D face)
     camera.capture(HOME + "Cube/face3.jpg")
 
-    # Rotate cube 180 degrees to expose top face
-    # The sequence differs based on whether 180-degree turns are available
-    if config.c180:
-        # Single 180-degree rotation via right arm
-        single_action("b", driver, config, cal, state)
-        single_action("X", driver, config, cal, state)
-        single_action("B", driver, config, cal, state)
-        single_action("a", driver, config, cal, state)
-        single_action("Z", driver, config, cal, state)
-        single_action("A", driver, config, cal, state)
-        single_action("b", driver, config, cal, state)
-        single_action("Y", driver, config, cal, state)
-        single_action("B", driver, config, cal, state)
-    else:
-        # Two 90-degree rotations via right arm
-        single_action("b", driver, config, cal, state)
-        single_action("X", driver, config, cal, state)
-        single_action("B", driver, config, cal, state)
-        single_action("a", driver, config, cal, state)
-        single_action("Y", driver, config, cal, state)
-        single_action("A", driver, config, cal, state)
+    # Rotate 180 degrees to expose the top (U) face as TWO 90-degree
+    # rotations with a regrip between, rather than a single 180-degree flip
+    # -- even on c180 hardware. The single flip holds the cube solo on one
+    # wrist through a full 180-degree arc, so any error in how the cube is
+    # centered on the wrist axis is doubled and lands the U face skewed,
+    # corrupting the scan (the U face was the consistent scan failure). Two
+    # 90-degree reorientations keep each arc small and the intermediate
+    # regrip re-centers the cube. Both paths net the same 180-degree
+    # orientation, so the color-order correction in color.py is unchanged.
+    single_action("b", driver, config, cal, state)
+    single_action("X", driver, config, cal, state)
+    single_action("B", driver, config, cal, state)
+    single_action("a", driver, config, cal, state)
+    single_action("Y", driver, config, cal, state)
+    single_action("A", driver, config, cal, state)
 
-        single_action("b", driver, config, cal, state)
-        single_action("X", driver, config, cal, state)
-        single_action("B", driver, config, cal, state)
-        single_action("a", driver, config, cal, state)
-        single_action("Y", driver, config, cal, state)
-        single_action("A", driver, config, cal, state)
+    regrip(driver, config, cal)
+
+    single_action("b", driver, config, cal, state)
+    single_action("X", driver, config, cal, state)
+    single_action("B", driver, config, cal, state)
+    single_action("a", driver, config, cal, state)
+    single_action("Y", driver, config, cal, state)
+    single_action("A", driver, config, cal, state)
 
     regrip(driver, config, cal)
 
